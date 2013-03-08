@@ -2,7 +2,6 @@ package com.stromgens.myviewpagerdemo;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.os.AsyncTask;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -11,7 +10,8 @@ import android.widget.ImageView;
 import android.widget.ProgressBar;
 
 import com.stormgens.myviewpagerdemo.R;
-import com.stromgens.util.ImageUtil;
+import com.stormgens.thread.MyAsyncTask;
+import com.stormgens.util.ImageUtil;
 
 public class ViewPagerItem extends FrameLayout{
     //context
@@ -42,7 +42,7 @@ public class ViewPagerItem extends FrameLayout{
     
     public void setBitMap(String string,int position){
         p=position;
-        new AsyncTask<String, Void, Bitmap>() {
+        new MyAsyncTask<String, Void, Bitmap>() {
 
             @Override
             protected Bitmap doInBackground(String... params) {

@@ -1,0 +1,6 @@
+.buildpath
+.settings
+bin
+gen
+.DS_Store
+Thumbs.db

@@ -9,6 +9,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 
+import com.stormgens.myviewpagerdemo.R;
+
 public class ImageViewPagerAdapter extends PagerAdapter {
     private Context mContext;
     private ArrayList<String> mItems;
@@ -33,9 +35,11 @@ public class ImageViewPagerAdapter extends PagerAdapter {
     @Override
     public Object instantiateItem(ViewGroup container, int position) {
         ViewPagerItem item=new ViewPagerItem(mContext);
+        int padding = container.getResources().getDimensionPixelSize(R.dimen.padding_image_paper);
+        item.imageView.setPadding(padding, padding, padding, padding);
+        item.imageView.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         container.addView(item);
         Log.v("xxx", "instantiateItem~~~"+position);
-        item.imageView.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         item.setBitMap(mItems.get(position),position);
         return item;
     }
