@@ -944,7 +944,7 @@ public class CropImage extends AbstractGalleryActivity {
     private static void copyExif(MediaItem item, String destination, int newWidth, int newHeight) {
         try {
             ExifInterface newExif = new ExifInterface(destination);
-            PicasaSource.extractExifValues(item, newExif);
+//            PicasaSource.extractExifValues(item, newExif);
             newExif.setAttribute(ExifInterface.TAG_IMAGE_WIDTH, String.valueOf(newWidth));
             newExif.setAttribute(ExifInterface.TAG_IMAGE_LENGTH, String.valueOf(newHeight));
             newExif.setAttribute(ExifInterface.TAG_ORIENTATION, String.valueOf(0));
