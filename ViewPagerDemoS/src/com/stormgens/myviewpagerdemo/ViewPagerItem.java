@@ -1,4 +1,4 @@
-package com.stromgens.myviewpagerdemo;
+package com.stormgens.myviewpagerdemo;
 
 import android.content.Context;
 import android.graphics.Bitmap;

@@ -12,14 +12,6 @@
 	    android:scaleType="fitXY"
 	    />
 	
-	
-	<TextView
-	    android:id="@+id/album_name"
-	    android:layout_width="wrap_content"
-	    android:layout_height="wrap_content"
-	    android:layout_gravity="bottom|center_horizontal" 
-	    android:textColor="#B2191919"
-	    />
 
 	<ProgressBar
 	    android:id="@+id/album_progressbar"

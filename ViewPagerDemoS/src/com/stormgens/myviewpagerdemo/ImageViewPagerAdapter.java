@@ -1,4 +1,4 @@
-package com.stromgens.myviewpagerdemo;
+package com.stormgens.myviewpagerdemo;
 
 import java.util.ArrayList;
 
