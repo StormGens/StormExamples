@@ -1,6 +1,7 @@
 package com.stormgens.myviewpagerdemo.fragment;
 
 import com.stormgens.myviewpagerdemo.R;
+import com.stormgens.myviewpagerdemo.activity.ImageDetailViewPagerActivity;
 import com.stormgens.thread.MyAsyncTask;
 import com.stormgens.util.ImageUtil;
 
@@ -45,6 +46,7 @@ public class ImageDetailFragment extends Fragment {
         View view=inflater.inflate(R.layout.viewpager_itemview, container, false);
         pb=(ProgressBar) view.findViewById(R.id.album_progressbar);
         iv=(ImageView) view.findViewById(R.id.album_imgeview);
+        iv.setOnClickListener((ImageDetailViewPagerActivity)getActivity());
         padding = container.getResources().getDimensionPixelSize(R.dimen.padding_image_paper);
         return view;
     }
