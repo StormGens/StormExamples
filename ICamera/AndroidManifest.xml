@@ -16,7 +16,7 @@
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_SMS" />
-    <uses-sdk android:targetSdkVersion="17" android:minSdkVersion="14"/>
+    <uses-sdk android:targetSdkVersion="17" android:minSdkVersion="16"/>
 
     <application android:icon="@mipmap/ic_launcher_camera"
             android:name="com.android.camera.CameraAppImpl"

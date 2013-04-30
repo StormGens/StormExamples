@@ -69,12 +69,6 @@ public class ViewPagerItem extends FrameLayout{
             bp=null;
         }
         Log.v("xxx", "recycle"+imageView+"~~"+p);
-//        if (bp!=null) {
-//            bp.recycle();
-//            bp=null;
-//            imageView=null;
-//            mContext=null;
-//        }
     }
     
 }
