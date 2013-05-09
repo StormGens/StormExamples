@@ -27,6 +27,7 @@ public class CameraSettings {
     public static final String KEY_EXPOSURE = "pref_camera_exposure_key";// 曝光补偿
     public static final String KEY_PICTURE_SIZE = "pref_camera_picturesize_key";// 拍照分辨率
     public static final String KEY_FOCUS_MODE = "pref_camera_focusmode_key";
+    public static final String KEY_FLASH_MODE = "pref_camera_flashmode_key";
 
     public static final String EXPOSURE_DEFAULT_VALUE = "0";// 默认的曝光补偿值
 

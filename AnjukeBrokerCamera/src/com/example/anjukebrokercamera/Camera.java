@@ -17,6 +17,7 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.WindowManager;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,6 +25,7 @@ import java.util.List;
 public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, OnClickListener,
         ShutterButton.OnShutterButtonListener {
     private final String TAG = "CameraActivity";
+    private static final int SCREEN_DELAY = 2 * 60 * 1000;
     // 变量
     private android.hardware.Camera mCameraDevice; // 相机的硬件设备
     private SurfaceView mSurfaceView; // 用作预览区的mSurfaceView
@@ -65,6 +67,7 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
 
     // Handler相关
     MyHandler mHandler = new MyHandler();
+    private static final int CLEAR_SCREEN_DELAY = 4;
     private static final int SET_CAMERA_PARAMETERS_WHEN_IDLE = 5;
 
     // 已抛弃列表：1、抛弃CameraSettings.upgradePreferences()方法的实现
@@ -72,6 +75,7 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
     // 3、抛弃掉updateFocusIndicator对焦框的操作
     // 4、zoomChangeListener
     // 5、ErrorCallback
+    // 6、一些暂时用不上的相机的配置
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,7 +95,6 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
                     mStartPreviewFail = false;
                     startPreview();
                 } catch (CameraHardwareException e) {
-                    // TODO Auto-generated catch block
                     e.printStackTrace();
                     mStartPreviewFail = true;
                 }
@@ -110,13 +113,30 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
                 return;
             }
         } catch (InterruptedException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         }
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        mPausing = false;
+
+        // 如果还没有开启预览，那么就开启预览。
+        if (!mPreviewing && !mStartPreviewFail) {
+            resetExposureCompensation();
+            try {
+                startPreview();
+            } catch (CameraHardwareException e) {
+                showCameraErrorAndFinish();
+                e.printStackTrace();
+            }
+        }
+
+        keepScreenOnAwhile();
+    }
+
     private void startPreview() throws CameraHardwareException {
-        // TODO Auto-generated method stub
         if (mPausing || isFinishing()) {
             return;
         }
@@ -152,7 +172,6 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
      * 确保得到相机设备
      */
     private void ensureCameraDevice() throws CameraHardwareException {
-        // TODO Auto-generated method stub
         if (mCameraDevice == null) {
             mCameraDevice = CameraHolder.instance().open();
         }
@@ -178,7 +197,6 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
     }
 
     private void clearFocusState() {
-        // TODO Auto-generated method stub
         mFocusState = FOCUS_NOT_STARTED;
         updateFocusIndicator();
     }
@@ -230,6 +248,19 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
         mParameters.setPreviewSize(optimalSize.width, optimalSize.height);
         // 设置场景模式
 
+        // 设置闪光灯模式
+        String flashMode = mPreferences.getString(CameraSettings.KEY_FLASH_MODE,
+                getString(R.string.pref_camera_flashmode_default));
+        List<String> supported = mParameters.getSupportedFlashModes();
+        if (Util.isSupported(flashMode, supported)) {
+            mParameters.setFlashMode(flashMode);
+        } else {// 其实这段代码没太大用
+            flashMode = mParameters.getFlashMode();
+            if (flashMode == null) {// 说明不支持闪光灯
+                mParameters.setFlashMode(getString(R.string.pref_camera_flashmode_no_flash));
+            }
+        }
+
         // 设置对焦模式
         mFocusMode = mPreferences.getString(CameraSettings.KEY_FOCUS_MODE, null);
         if (mFocusMode == null) {
@@ -278,13 +309,11 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
-        // TODO Auto-generated method stub
 
     }
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        // TODO Auto-generated method stub
         Log.v(TAG, "surfaceChanged---" + SystemClock.currentThreadTimeMillis());
         if (holder.getSurface() == null) {
             Log.e(TAG, "holder.getSurface() is null" + SystemClock.currentThreadTimeMillis());
@@ -341,7 +370,19 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
         mPausing = true;
         stopPreview();
         closeCamera();
+        resetScreenOn();
         super.onPause();
+    }
+
+    private void resetScreenOn() {
+        mHandler.removeMessages(CLEAR_SCREEN_DELAY);
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+
+    private void keepScreenOnAwhile() {
+        mHandler.removeMessages(CLEAR_SCREEN_DELAY);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        mHandler.sendEmptyMessageDelayed(CLEAR_SCREEN_DELAY, SCREEN_DELAY);
     }
 
     private class MyHandler extends Handler {
@@ -351,7 +392,9 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
                 case SET_CAMERA_PARAMETERS_WHEN_IDLE:
                     setCameraParametersWhenIdle(0);
                     break;
-
+                case CLEAR_SCREEN_DELAY:
+                    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    break;
                 default:
                     break;
             }

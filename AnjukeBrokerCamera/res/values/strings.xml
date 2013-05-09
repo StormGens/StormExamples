@@ -7,5 +7,10 @@
     <string name="details_ok">"确定"</string>
     <string name="camera_error_title">"相机故障"</string>
     <string name="cannot_connect_camera">"无法连接到相机。"</string>
+    
+        <!-- Default flash mode setting.-->
+    <string name="pref_camera_flashmode_default" translatable="false">auto</string>
+        <!-- Value for flash off setting-->
+    <string name="pref_camera_flashmode_no_flash" translatable="false">no_flash</string>
 
 </resources>
