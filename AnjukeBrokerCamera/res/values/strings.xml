@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">AnjukeBrokerCamera</string>
+    <string name="action_settings">Settings</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="details_ok">"确定"</string>
+    <string name="camera_error_title">"相机故障"</string>
+    <string name="cannot_connect_camera">"无法连接到相机。"</string>
+
+</resources>
