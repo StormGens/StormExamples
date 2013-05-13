@@ -12,11 +12,13 @@ import android.os.Message;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 
 import java.io.IOException;
@@ -105,6 +107,10 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
         holder.addCallback(this);
         holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
 
+        // 开始初始化相机操控界面
+        LayoutInflater inflater = getLayoutInflater();
+        ViewGroup rootView = (ViewGroup) findViewById(R.id.camera);
+        inflater.inflate(R.layout.camera_control, rootView);
         // 确保预览已开启
         try {
             startPreviewThread.join();

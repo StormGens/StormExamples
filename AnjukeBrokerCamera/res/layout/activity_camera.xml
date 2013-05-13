@@ -1,13 +1,17 @@
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/camera"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="horizontal"
     tools:context=".Camera" >
 
     <com.example.anjukebrokercamera.PreviewFrameLayout
         android:id="@+id/preview_fl"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" >
+        android:layout_height="match_parent" 
+        android:layout_weight="1"
+        >
 
         <FrameLayout
             android:id="@+id/frame"
@@ -21,4 +25,4 @@
         </FrameLayout>
     </com.example.anjukebrokercamera.PreviewFrameLayout>
 
-</RelativeLayout>
+</LinearLayout>
