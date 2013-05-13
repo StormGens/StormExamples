@@ -59,6 +59,7 @@ import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MenuItem.OnMenuItemClickListener;
 import android.view.MotionEvent;
 import android.view.OrientationEventListener;
 import android.view.SurfaceHolder;
@@ -67,7 +68,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
-import android.view.MenuItem.OnMenuItemClickListener;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
@@ -104,10 +104,10 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
     private static final int SET_CAMERA_PARAMETERS_WHEN_IDLE = 5;
 
     // The subset of parameters we need to update in setCameraParameters().
-    private static final int UPDATE_PARAM_INITIALIZE = 1;
-    private static final int UPDATE_PARAM_ZOOM = 2;
-    private static final int UPDATE_PARAM_PREFERENCE = 4;
-    private static final int UPDATE_PARAM_ALL = -1;
+    private static final int UPDATE_PARAM_INITIALIZE = 1; // 0001
+    private static final int UPDATE_PARAM_ZOOM = 2; // 0010
+    private static final int UPDATE_PARAM_PREFERENCE = 4; // 0100
+    private static final int UPDATE_PARAM_ALL = -1; // 1111
 
     // When setCameraParametersWhenIdle() is called, we accumulate the subsets
     // needed to be updated in mUpdateSet.
@@ -120,14 +120,13 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
     private static final int SCREEN_DELAY = 2 * 60 * 1000;
     private static final int FOCUS_BEEP_VOLUME = 100;
 
-
     private static final int ZOOM_STOPPED = 0;
     private static final int ZOOM_START = 1;
     private static final int ZOOM_STOPPING = 2;
 
     private int mZoomState = ZOOM_STOPPED;
     private boolean mSmoothZoomSupported = false;
-    private int mZoomValue;  // The current zoom value.
+    private int mZoomValue; // The current zoom value.
     private int mZoomMax;
     private int mTargetZoomValue;
 
@@ -135,7 +134,7 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
     private Parameters mInitialParams;
 
     private OrientationEventListener mOrientationListener;
-    private int mLastOrientation = 0;  // No rotation (landscape) by default.
+    private int mLastOrientation = 0; // No rotation (landscape) by default.
     private SharedPreferences mPreferences;
 
     private static final int IDLE = 1;
@@ -296,7 +295,8 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
     // once only. We could have done these things in onCreate() but we want to
     // make preview screen appear as soon as possible.
     private void initializeFirstTime() {
-        if (mFirstTimeInitialized) return;
+        if (mFirstTimeInitialized)
+            return;
 
         // Create orientation listenter. This should be done first because it
         // takes some time to get first orientation.
@@ -311,7 +311,7 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
                 orientation = ImageManager.roundOrientation(orientation);
                 if (orientation != mLastOrientation) {
                     mLastOrientation = orientation;
-                    if (!mIsImageCaptureIntent)  {
+                    if (!mIsImageCaptureIntent) {
                         setOrientationIndicator(mLastOrientation);
                     }
                     if (mGLRootView != null) {
@@ -331,14 +331,15 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
                 getSystemService(Context.LOCATION_SERVICE);
         mRecordLocation = RecordLocationPreference.get(
                 mPreferences, getContentResolver());
-        if (mRecordLocation) startReceivingLocationUpdates();
+        if (mRecordLocation)
+            startReceivingLocationUpdates();
 
         keepMediaProviderInstance();
         checkStorage();
 
         // Initialize last picture button.
         mContentResolver = getContentResolver();
-        if (!mIsImageCaptureIntent)  {
+        if (!mIsImageCaptureIntent) {
             findViewById(R.id.camera_switch).setOnClickListener(this);
             mLastPictureButton =
                     (ImageView) findViewById(R.id.review_thumbnail);
@@ -399,7 +400,8 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
             mRecordLocation = RecordLocationPreference.get(
                     mPreferences, getContentResolver());
         }
-        if (mRecordLocation) startReceivingLocationUpdates();
+        if (mRecordLocation)
+            startReceivingLocationUpdates();
 
         installIntentFilter();
 
@@ -418,7 +420,8 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
     }
 
     private void initializeZoom() {
-        if (!mParameters.isZoomSupported()) return;
+        if (!mParameters.isZoomSupported())
+            return;
 
         // Maximum zoom value may change after preview size is set. Get the
         // latest parameters here.
@@ -458,7 +461,7 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
             }
             return result;
         } else {
-            //1.0, 1.2, 1.44, 1.6, 1.8, 2.0
+            // 1.0, 1.2, 1.44, 1.6, 1.8, 2.0
             float result[] = new float[mZoomMax + 1];
             for (int i = 0, n = result.length; i < n; ++i) {
                 result[i] = 1 + i * 0.2f;
@@ -501,7 +504,7 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
         return true;
     }
 
-    LocationListener [] mLocationListeners = new LocationListener[] {
+    LocationListener[] mLocationListeners = new LocationListener[] {
             new LocationListener(LocationManager.GPS_PROVIDER),
             new LocationListener(LocationManager.NETWORK_PROVIDER)
     };
@@ -516,7 +519,7 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
                 checkStorage();
             } else if (action.equals(Intent.ACTION_MEDIA_SCANNER_FINISHED)) {
                 checkStorage();
-                if (!mIsImageCaptureIntent)  {
+                if (!mIsImageCaptureIntent) {
                     updateThumbnailButton();
                 }
             }
@@ -561,7 +564,7 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
 
         public void onStatusChanged(
                 String provider, int status, Bundle extras) {
-            switch(status) {
+            switch (status) {
                 case LocationProvider.OUT_OF_SERVICE:
                 case LocationProvider.TEMPORARILY_UNAVAILABLE: {
                     mValid = false;
@@ -593,7 +596,7 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
 
     private final class PostViewPictureCallback implements PictureCallback {
         public void onPictureTaken(
-                byte [] data, android.hardware.Camera camera) {
+                byte[] data, android.hardware.Camera camera) {
             mPostViewPictureCallbackTime = System.currentTimeMillis();
             Log.v(TAG, "mShutterToPostViewCallbackTime = "
                     + (mPostViewPictureCallbackTime - mShutterCallbackTime)
@@ -603,7 +606,7 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
 
     private final class RawPictureCallback implements PictureCallback {
         public void onPictureTaken(
-                byte [] rawData, android.hardware.Camera camera) {
+                byte[] rawData, android.hardware.Camera camera) {
             mRawPictureCallbackTime = System.currentTimeMillis();
             Log.v(TAG, "mShutterToRawCallbackTime = "
                     + (mRawPictureCallbackTime - mShutterCallbackTime) + "ms");
@@ -618,7 +621,7 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
         }
 
         public void onPictureTaken(
-                final byte [] jpegData, final android.hardware.Camera camera) {
+                final byte[] jpegData, final android.hardware.Camera camera) {
             if (mPausing) {
                 return;
             }
@@ -655,8 +658,10 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
             mImageCapture.storeImage(jpegData, camera, mLocation);
 
             // Calculate this in advance of each shot so we don't add to shutter
-            // latency. It's true that someone else could write to the SD card in
-            // the mean time and fill it, but that could have happened between the
+            // latency. It's true that someone else could write to the SD card
+            // in
+            // the mean time and fill it, but that could have happened between
+            // the
             // shutter press and saving the JPEG too.
             calculatePicturesRemaining();
 
@@ -712,11 +717,11 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
     }
 
     private static final class ErrorCallback
-        implements android.hardware.Camera.ErrorCallback {
+            implements android.hardware.Camera.ErrorCallback {
         public void onError(int error, android.hardware.Camera camera) {
             if (error == android.hardware.Camera.CAMERA_ERROR_SERVER_DIED) {
-                 mMediaServerDied = true;
-                 Log.v(TAG, "media server died");
+                mMediaServerDied = true;
+                Log.v(TAG, "media server died");
             }
         }
     }
@@ -725,7 +730,7 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
             implements android.hardware.Camera.OnZoomChangeListener {
         public void onZoomChange(
                 int value, boolean stopped, android.hardware.Camera camera) {
-            Log.v(TAG, "Zoom changed: value=" + value + ". stopped="+ stopped);
+            Log.v(TAG, "Zoom changed: value=" + value + ". stopped=" + stopped);
             mZoomValue = value;
             // Keep mParameters up to date. We do not getParameter again in
             // takePicture. If we do not do this, wrong zoom value will be set.
@@ -912,16 +917,16 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
         mPreferences = PreferenceManager.getDefaultSharedPreferences(this);
         CameraSettings.upgradePreferences(mPreferences);
 
-        mQuickCapture = getQuickCaptureSettings();
+        mQuickCapture = getQuickCaptureSettings();// 无视掉算了，这个快速拍照模式貌似没发现有什么大用。并且在2.3中就被砍掉了
 
         // comment out -- unused now.
-        //mQuickCapture = getQuickCaptureSettings();
+        // mQuickCapture = getQuickCaptureSettings();
 
         // we need to reset exposure for the preview
         resetExposureCompensation();
         /*
-         * To reduce startup time, we start the preview in another thread.
-         * We make sure the preview is started at the end of onCreate.
+         * To reduce startup time, we start the preview in another thread. We
+         * make sure the preview is started at the end of onCreate.
          */
         Thread startPreviewThread = new Thread(new Runnable() {
             public void run() {
@@ -989,7 +994,8 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
         Configuration config = getResources().getConfiguration();
         if (config.orientation == Configuration.ORIENTATION_LANDSCAPE
                 && !mPausing && mFirstTimeInitialized) {
-            if (mGLRootView == null) initializeHeadUpDisplay();
+            if (mGLRootView == null)
+                initializeHeadUpDisplay();
         } else if (mGLRootView != null) {
             finalizeHeadUpDisplay();
         }
@@ -1005,14 +1011,15 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
                         CameraSettings.KEY_WHITE_BALANCE, whiteBalance);
                 mHeadUpDisplay.overrideSettings(
                         CameraSettings.KEY_FOCUS_MODE, focusMode);
-            }});        
+            }
+        });
     }
 
-    private void updateSceneModeInHud() {        
+    private void updateSceneModeInHud() {
         // If scene mode is set, we cannot set flash mode, white balance, and
-        // focus mode, instead, we read it from driver        
+        // focus mode, instead, we read it from driver
         if (!Parameters.SCENE_MODE_AUTO.equals(mSceneMode)) {
-            overrideHudSettings(mParameters.getFlashMode(), 
+            overrideHudSettings(mParameters.getFlashMode(),
                     mParameters.getWhiteBalance(), mParameters.getFocusMode());
         } else {
             overrideHudSettings(null, null, null);
@@ -1059,12 +1066,9 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
     }
 
     private void setOrientationIndicator(int degree) {
-        ((RotateImageView) findViewById(
-                R.id.review_thumbnail)).setDegree(degree);
-        ((RotateImageView) findViewById(
-                R.id.camera_switch_icon)).setDegree(degree);
-        ((RotateImageView) findViewById(
-                R.id.video_switch_icon)).setDegree(degree);
+        ((RotateImageView) findViewById(R.id.review_thumbnail)).setDegree(degree);
+        ((RotateImageView) findViewById(R.id.camera_switch_icon)).setDegree(degree);
+        ((RotateImageView) findViewById(R.id.video_switch_icon)).setDegree(degree);
     }
 
     @Override
@@ -1132,7 +1136,7 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
         byte[] data = mImageCapture.getLastCaptureData();
 
         if (mCropValue == null) {
-            // First handle the no crop case -- just return the value.  If the
+            // First handle the no crop case -- just return the value. If the
             // caller specifies a "save uri" then write the data to it's
             // stream. Otherwise, pass back a scaled down version of the bitmap
             // directly in the extras.
@@ -1438,7 +1442,8 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
     }
 
     private void updateFocusIndicator() {
-        if (mFocusRectangle == null) return;
+        if (mFocusRectangle == null)
+            return;
 
         if (mFocusState == FOCUSING || mFocusState == FOCUSING_SNAP_ON_FINISH) {
             mFocusRectangle.showStart();
@@ -1481,7 +1486,8 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
                     // Start auto-focus immediately to reduce shutter lag. After
                     // the shutter button gets the focus, doFocus() will be
                     // called again but it is fine.
-                    if (mHeadUpDisplay.collapse()) return true;
+                    if (mHeadUpDisplay.collapse())
+                        return true;
                     doFocus(true);
                     if (mShutterButton.isInTouchMode()) {
                         mShutterButton.requestFocusFromTouch();
@@ -1509,7 +1515,8 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
     }
 
     private void doSnap() {
-        if (mHeadUpDisplay.collapse()) return;
+        if (mHeadUpDisplay.collapse())
+            return;
 
         Log.v(TAG, "doSnap: mFocusState=" + mFocusState);
         // If the user has half-pressed the shutter and focus is completed, we
@@ -1531,11 +1538,12 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
 
     private void doFocus(boolean pressed) {
         // Do the focus if the mode is not infinity.
-        if (mHeadUpDisplay.collapse()) return;
+        if (mHeadUpDisplay.collapse())
+            return;
         if (!mFocusMode.equals(Parameters.FOCUS_MODE_INFINITY)) {
-            if (pressed) {  // Focus key down.
+            if (pressed) { // Focus key down.
                 autoFocus();
-            } else {  // Focus key up.
+            } else { // Focus key up.
                 cancelAutoFocus();
             }
         }
@@ -1556,11 +1564,13 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
         // The mCameraDevice will be null if it fails to connect to the camera
         // hardware. In this case we will show a dialog and then finish the
         // activity, so it's OK to ignore it.
-        if (mCameraDevice == null) return;
+        if (mCameraDevice == null)
+            return;
 
         // Sometimes surfaceChanged is called after onPause or before onResume.
         // Ignore it.
-        if (mPausing || isFinishing()) return;
+        if (mPausing || isFinishing())
+            return;
 
         if (mPreviewing && holder.isCreating()) {
             // Set preview display if the surface is being created and preview
@@ -1611,11 +1621,11 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
 
     private void updateLastImage() {
         IImageList list = ImageManager.makeImageList(
-            mContentResolver,
-            dataLocation(),
-            ImageManager.INCLUDE_IMAGES,
-            ImageManager.SORT_ASCENDING,
-            ImageManager.CAMERA_IMAGE_BUCKET_ID);
+                mContentResolver,
+                dataLocation(),
+                ImageManager.INCLUDE_IMAGES,
+                ImageManager.SORT_ASCENDING,
+                ImageManager.CAMERA_IMAGE_BUCKET_ID);
         int count = list.getCount();
         if (count > 0) {
             IImage image = list.getImageAt(count - 1);
@@ -1653,13 +1663,15 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
     }
 
     private void startPreview() throws CameraHardwareException {
-        if (mPausing || isFinishing()) return;
+        if (mPausing || isFinishing())
+            return;
 
         ensureCameraDevice();
 
         // If we're previewing already, stop the preview first (this will blank
         // the screen).
-        if (mPreviewing) stopPreview();
+        if (mPreviewing)
+            stopPreview();
 
         setPreviewDisplay(mSurfaceHolder);
         setCameraParameters(UPDATE_PARAM_ALL);
@@ -1693,7 +1705,8 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
 
     private Size getOptimalPreviewSize(List<Size> sizes, double targetRatio) {
         final double ASPECT_TOLERANCE = 0.05;
-        if (sizes == null) return null;
+        if (sizes == null)
+            return null;
 
         Size optimalSize = null;
         double minDiff = Double.MAX_VALUE;
@@ -1717,7 +1730,8 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
         // Try to find an size match aspect ratio and size
         for (Size size : sizes) {
             double ratio = (double) size.width / size.height;
-            if (Math.abs(ratio - targetRatio) > ASPECT_TOLERANCE) continue;
+            if (Math.abs(ratio - targetRatio) > ASPECT_TOLERANCE)
+                continue;
             if (Math.abs(size.height - targetHeight) < minDiff) {
                 optimalSize = size;
                 minDiff = Math.abs(size.height - targetHeight);
@@ -1742,6 +1756,9 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
         return supported == null ? false : supported.indexOf(value) >= 0;
     }
 
+    /**
+     * 更新相机预览的帧率到最大,因为其有可能在Video Camera中被改变
+     */
     private void updateCameraParametersInitialize() {
         // Reset preview frame rate to the maximum because it may be lowered by
         // video camera application.
@@ -1843,7 +1860,8 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
             Log.w(TAG, "invalid exposure: " + exposure);
         }
 
-        if (mGLRootView != null) updateSceneModeInHud();
+        if (mGLRootView != null)
+            updateSceneModeInHud();
 
         if (Parameters.SCENE_MODE_AUTO.equals(mSceneMode)) {
             // Set flash mode.
@@ -1995,7 +2013,8 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
         // go in best to worst order
         for (int i = 0; i < mLocationListeners.length; i++) {
             Location l = mLocationListeners[i].current();
-            if (l != null) return l;
+            if (l != null)
+                return l;
         }
         return null;
     }
@@ -2020,7 +2039,9 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
     private void showPostCaptureAlert() {
         if (mIsImageCaptureIntent) {
             findViewById(R.id.shutter_button).setVisibility(View.INVISIBLE);
-            int[] pickIds = {R.id.btn_retake, R.id.btn_done};
+            int[] pickIds = {
+                    R.id.btn_retake, R.id.btn_done
+            };
             for (int id : pickIds) {
                 View button = findViewById(id);
                 ((View) button.getParent()).setVisibility(View.VISIBLE);
@@ -2031,7 +2052,9 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
     private void hidePostCaptureAlert() {
         if (mIsImageCaptureIntent) {
             findViewById(R.id.shutter_button).setVisibility(View.VISIBLE);
-            int[] pickIds = {R.id.btn_retake, R.id.btn_done};
+            int[] pickIds = {
+                    R.id.btn_retake, R.id.btn_done
+            };
             for (int id : pickIds) {
                 View button = findViewById(id);
                 ((View) button.getParent()).setVisibility(View.GONE);
@@ -2078,17 +2101,18 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
                 MenuHelper.POSITION_GOTO_GALLERY,
                 R.string.camera_gallery_photos_text)
                 .setOnMenuItemClickListener(new OnMenuItemClickListener() {
-            public boolean onMenuItemClick(MenuItem item) {
-                gotoGallery();
-                return true;
-            }
-        });
+                    public boolean onMenuItemClick(MenuItem item) {
+                        gotoGallery();
+                        return true;
+                    }
+                });
         gallery.setIcon(android.R.drawable.ic_menu_gallery);
         mGalleryItems.add(gallery);
     }
 
     private boolean switchToVideoMode() {
-        if (isFinishing() || !isCameraIdle()) return false;
+        if (isFinishing() || !isCameraIdle())
+            return false;
         MenuHelper.gotoVideoMode(this);
         mHandler.removeMessages(FIRST_TIME_INIT);
         finish();
@@ -2105,7 +2129,8 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
 
     private void onSharedPreferenceChanged() {
         // ignore the events after "onPause()"
-        if (mPausing) return;
+        if (mPausing)
+            return;
 
         boolean recordLocation;
 
@@ -2176,7 +2201,8 @@ public class Camera extends NoSearchActivity implements View.OnClickListener,
     }
 
     protected void onRestorePreferencesClicked() {
-        if (mPausing) return;
+        if (mPausing)
+            return;
         Runnable runnable = new Runnable() {
             public void run() {
                 mHeadUpDisplay.restorePreferences(mParameters);
@@ -2220,8 +2246,8 @@ class FocusRectangle extends View {
 }
 
 /*
- * Provide a mapping for Jpeg encoding quality levels
- * from String representation to numeric representation.
+ * Provide a mapping for Jpeg encoding quality levels from String representation
+ * to numeric representation.
  */
 class JpegEncodingQualityMappings {
     private static final String TAG = "JpegEncodingQualityMappings";
@@ -2230,8 +2256,8 @@ class JpegEncodingQualityMappings {
             new HashMap<String, Integer>();
 
     static {
-        mHashMap.put("normal",    CameraProfile.QUALITY_LOW);
-        mHashMap.put("fine",      CameraProfile.QUALITY_MEDIUM);
+        mHashMap.put("normal", CameraProfile.QUALITY_LOW);
+        mHashMap.put("fine", CameraProfile.QUALITY_MEDIUM);
         mHashMap.put("superfine", CameraProfile.QUALITY_HIGH);
     }
 

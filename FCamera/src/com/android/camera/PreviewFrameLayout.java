@@ -24,8 +24,8 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 /**
- * A layout which handles the preview aspect ratio and the position of
- * the gripper.
+ * A layout which handles the preview aspect ratio and the position of the
+ * gripper.
  */
 public class PreviewFrameLayout extends ViewGroup {
     private static final int MIN_HORIZONTAL_MARGIN = 10; // 10dp
@@ -46,8 +46,22 @@ public class PreviewFrameLayout extends ViewGroup {
                 .getDefaultDisplay().getMetrics(mMetrics);
     }
 
+    public PreviewFrameLayout(Context context) {
+        super(context);
+    }
+
+    public PreviewFrameLayout(Context context, AttributeSet attrs, int defStyle) {
+        super(context, attrs, defStyle);
+    }
+
     public void setOnSizeChangedListener(OnSizeChangedListener listener) {
         mSizeListener = listener;
+    }
+
+    @Override
+    public boolean isInEditMode() {
+        // TODO Auto-generated method stub
+        return super.isInEditMode();
     }
 
     @Override
@@ -60,7 +74,8 @@ public class PreviewFrameLayout extends ViewGroup {
     }
 
     public void setAspectRatio(double ratio) {
-        if (ratio <= 0.0) throw new IllegalArgumentException();
+        if (ratio <= 0.0)
+            throw new IllegalArgumentException();
 
         if (mAspectRatio != ratio) {
             mAspectRatio = ratio;
@@ -111,4 +126,3 @@ public class PreviewFrameLayout extends ViewGroup {
         }
     }
 }
-
