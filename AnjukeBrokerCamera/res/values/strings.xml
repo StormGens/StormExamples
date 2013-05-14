@@ -8,6 +8,9 @@
     <string name="camera_error_title">"相机故障"</string>
     <string name="cannot_connect_camera">"无法连接到相机。"</string>
     
+        <string name="preparing_sd" msgid="2914969119574812666">"正在准备 SD 卡..."</string>
+            <string name="no_storage" msgid="820691042667338625">"使用相机前请先插入 SD 卡。"</string>
+            <string name="not_enough_space" msgid="6655334407957844653">"SD 卡已满。"</string>
         <!-- Default flash mode setting.-->
     <string name="pref_camera_flashmode_default" translatable="false">auto</string>
         <!-- Value for flash off setting-->

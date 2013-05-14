@@ -1,25 +1,40 @@
 
 package com.example.anjukebrokercamera;
 
+import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.content.res.Resources;
 import android.hardware.Camera.Parameters;
 import android.hardware.Camera.Size;
+import android.media.AudioManager;
+import android.media.ToneGenerator;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
+import android.view.OrientationEventListener;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.WindowManager;
+import android.widget.ImageView;
+
+import com.example.anjukebrokercamera.storage.StorageUtil;
+import com.example.anjukebrokercamera.ui.RotateImageView;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,10 +43,17 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
         ShutterButton.OnShutterButtonListener {
     private final String TAG = "CameraActivity";
     private static final int SCREEN_DELAY = 2 * 60 * 1000;
+    private static final int FOCUS_BEEP_VOLUME = 100;// 拍照声音大小
+    private static final float DEFAULT_CAMERA_BRIGHTNESS = 0.7f;// 当用户手机屏幕亮度是自动时候，我们使用该值，不实用1.0是因为1.0太亮啦
+    // View
+    private ImageView mLastPictureButton;
+    private ShutterButton mShutterButton;
     // 变量
     private android.hardware.Camera mCameraDevice; // 相机的硬件设备
     private SurfaceView mSurfaceView; // 用作预览区的mSurfaceView
     private SurfaceHolder mSurfaceHolder = null; // 相机预览区域的holder
+    private ContentResolver mContentResolver;
+    private ToneGenerator mFocusToneGenerator;
     // 配置相关
     private SharedPreferences mPreferences; // 本app的sharepreference文件,很多时候的配置修改都要保存到这里来
     private Parameters mParameters; // 相机的配置
@@ -49,11 +71,17 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
 
     // 各种状态标记
     private boolean mStartPreviewFail = false; // 启动相机预览是不是成功
-
+    private boolean mFirstTimeInitialized;// 第一次初始化是否完成
     private boolean mPreviewing;// 是不是正在预览
+
+    // receiveer
+    private boolean mDidRegister = false;
 
     // activity的状态标记
     private boolean mPausing;
+    // 方向监听相关
+    private OrientationEventListener mOrientationListener;
+    private int mLastOrientation = 0; // No rotation (landscape) by default.
 
     // 对焦状态
     private static final int FOCUS_NOT_STARTED = 0;
@@ -69,8 +97,13 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
 
     // Handler相关
     MyHandler mHandler = new MyHandler();
+    private static final int FIRST_TIME_INIT = 2;
+    private static final int RESTART_PREVIEW = 3;
     private static final int CLEAR_SCREEN_DELAY = 4;
     private static final int SET_CAMERA_PARAMETERS_WHEN_IDLE = 5;
+
+    // 拍照过程相关
+    private int mPicturesRemaining;
 
     // 已抛弃列表：1、抛弃CameraSettings.upgradePreferences()方法的实现
     // 2、抛弃掉他自定义的用来设置相机配置的CameraHeadUpDisplay mHeadUpDisplay
@@ -78,6 +111,7 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
     // 4、zoomChangeListener
     // 5、ErrorCallback
     // 6、一些暂时用不上的相机的配置
+    // 7、定位的功能
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -138,7 +172,13 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
                 e.printStackTrace();
             }
         }
-
+        if (mSurfaceHolder != null) {
+            if (mFirstTimeInitialized) {
+                mHandler.sendEmptyMessage(FIRST_TIME_INIT);
+            } else {
+                initializeSecondTime();
+            }
+        }
         keepScreenOnAwhile();
     }
 
@@ -161,8 +201,18 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
             throw new RuntimeException("startPreview failed", e);
         }
 
-        mPreviewing=true;
+        mPreviewing = true;
         mStatus = IDLE;
+    }
+
+    private void restartPreview() {
+        try {
+            startPreview();
+        } catch (CameraHardwareException e) {
+            showCameraErrorAndFinish();
+            e.printStackTrace();
+        }
+
     }
 
     private void stopPreview() {
@@ -225,7 +275,7 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
 
         }
     }
-    
+
     private void updateCameraParametersPreference() {
         // 设置拍照尺寸
         String pictureSize = mPreferences.getString(CameraSettings.KEY_PICTURE_SIZE, null);
@@ -278,7 +328,6 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
         mParameters.setFocusMode(mFocusMode);
     }
 
-
     private void setCameraParameters(int updateSet) {
         mParameters = mCameraDevice.getParameters();
         if ((updateSet & UPDATE_PARAM_ALL) != 0) {
@@ -306,11 +355,157 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
         }
     }
 
+    /**
+     * 总共做了一下事情： 1、初始化方向监听 2、初始化定位服务 3、初始化预览图片的最后一张缩略图 4、初始化拍照按钮
+     */
+    private void initializeFirstTime() {
+        if (mFirstTimeInitialized) {
+            return;
+        }
+
+        // 因为方向监听会有一个时间延迟，所以我们应该尽快的开启方向监听
+        mOrientationListener = new OrientationEventListener(Camera.this) {
+
+            @Override
+            public void onOrientationChanged(int orientation) {
+                // 我们记录activity上次(last)的方向，所以当用户第一次启动并将方向设置为横屏时候
+                // 我们把这时候的方向记录下来。
+                if (orientation != ORIENTATION_UNKNOWN) {
+                    orientation += 90;
+                }
+                orientation = ImageManager.roundOrientation(orientation);
+                if (orientation != mLastOrientation) {
+                    mLastOrientation = orientation;
+                    setOrientationIndicator();
+                }
+            }
+        };
+        mOrientationListener.enable();
+        // keepMediaProviderInstance();
+        checkStorage();
+        // TODO 初始化定位服务--先砍掉
+        // 初始化缩略图
+        mContentResolver = getContentResolver();
+        mLastPictureButton = (ImageView) findViewById(R.id.review_thumbnail);
+        mLastPictureButton.setOnClickListener(this);
+        updateThumbnailButton();
+        // TODO 图片显示先不做
+        // 初始化拍照按钮
+        mShutterButton = (ShutterButton) findViewById(R.id.shutter_button);
+        mShutterButton.setOnShutterButtonListener(this);
+
+        initializeFocusTone();
+        initializeScreenBrightness();
+        installIntentFilter();
+
+        mFirstTimeInitialized = true;
+
+    }
+
+    /**
+     * 如果activity被pause();再被reSume()时候，该方法要被调用
+     */
+    private void initializeSecondTime() {
+        mOrientationListener.enable();
+        installIntentFilter();
+        initializeFocusTone();
+        checkStorage();
+        // 更新缩略图按钮
+        updateThumbnailButton();
+        // 检查sd卡
+        checkStorage();
+
+    }
+
+    private void initializeFocusTone() {
+        try {
+            mFocusToneGenerator = new ToneGenerator(AudioManager.STREAM_SYSTEM, FOCUS_BEEP_VOLUME);
+        } catch (Exception e) {
+            Log.w(TAG, "Exception caught while creating tone generator: ", e);
+            mFocusToneGenerator = null;
+        }
+    }
+
+    /**
+     * 如果用户的系统设置屏幕是自动亮度的话，就把他改为一个固定的值
+     */
+    private void initializeScreenBrightness() {
+        Window win = getWindow();
+        int mode = Settings.System.getInt(getContentResolver(),
+                Settings.System.SCREEN_BRIGHTNESS_MODE,
+                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+        if (mode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC) {
+            WindowManager.LayoutParams paras = win.getAttributes();
+            paras.screenBrightness = DEFAULT_CAMERA_BRIGHTNESS;
+            win.setAttributes(paras);
+        }
+
+    }
+
+    private void installIntentFilter() {
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Intent.ACTION_MEDIA_MOUNTED);
+        intentFilter.addAction(Intent.ACTION_MEDIA_CHECKING);
+        intentFilter.addAction(Intent.ACTION_MEDIA_UNMOUNTED);
+        intentFilter.addAction(Intent.ACTION_MEDIA_SCANNER_FINISHED);
+        intentFilter.addDataScheme("file");
+        registerReceiver(mReceiver, intentFilter);
+        mDidRegister = true;
+    }
+
+    private void setOrientationIndicator() {
+        ((RotateImageView) findViewById(R.id.review_thumbnail)).setDegree(mLastOrientation);
+        ((RotateImageView) findViewById(R.id.camera_switch_icon)).setDegree(mLastOrientation);
+        ((RotateImageView) findViewById(R.id.video_switch_icon)).setDegree(mLastOrientation);
+
+    }
+
+    private void updateThumbnailButton() {
+        // Update last image if URI is invalid and the storage is ready.
+        // if (!mThumbController.isUriValid() && mPicturesRemaining >= 0) {
+        // updateLastImage();
+        // }
+        // mThumbController.updateDisplayIfNeeded();
+    }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.camera, menu);
         return true;
+    }
+
+    private void checkStorage() {
+        mPicturesRemaining = StorageUtil.calculatePicturesRemaining();
+        updateStorageHint();
+    }
+
+    private OnScreenHint mStorageHint;
+
+    private void updateStorageHint() {
+        String noStorageText = null;
+        if (mPicturesRemaining == StorageUtil.NO_STORAGE_ERROR) {
+            String stage = Environment.getExternalStorageState();
+            if (stage.equals(Environment.MEDIA_CHECKING)) {
+                noStorageText = getString(R.string.preparing_sd);
+            } else {
+                noStorageText = getString(R.string.no_storage);
+            }
+        } else if (mPicturesRemaining < 1) {
+            noStorageText = getString(R.string.not_enough_space);
+        }
+        if (noStorageText != null) {
+            if (mStorageHint == null) {
+                mStorageHint = OnScreenHint.makeText(Camera.this, noStorageText);
+            } else {
+                mStorageHint.setText(noStorageText);
+            }
+            mStorageHint.show();
+        } else if (mStorageHint != null) {
+            mStorageHint.cancel();
+            mStorageHint = null;
+        }
+
     }
 
     @Override
@@ -336,7 +531,12 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
         if (mPreviewing && mSurfaceHolder.isCreating()) {
             setPreviewDisplay(mSurfaceHolder);
         } else {
-            // TODO
+            restartPreview();
+        }
+        if (mFirstTimeInitialized) {
+            mHandler.sendEmptyMessage(FIRST_TIME_INIT);
+        } else {
+            initializeSecondTime();
         }
 
     }
@@ -350,6 +550,14 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
     @Override
     public void onClick(View v) {
         // TODO Auto-generated method stub
+        switch (v.getId()) {
+            case R.id.review_thumbnail:
+                Log.v(TAG, "我要飞得更高。");
+                break;
+
+            default:
+                break;
+        }
 
     }
 
@@ -372,14 +580,40 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
     }
 
     @Override
+    public void onBackPressed() {
+        // TODO Auto-generated method stub
+        super.onBackPressed();
+    }
+
+    @Override
     protected void onPause() {
         mPausing = true;
         stopPreview();
         closeCamera();
         resetScreenOn();
+
+        if (mFirstTimeInitialized) {
+            mOrientationListener.disable();
+        }
+
+        if (mFocusToneGenerator != null) {
+            mFocusToneGenerator.release();
+            mFocusToneGenerator = null;
+        }
+        if (mDidRegister) {
+            unregisterReceiver(mReceiver);
+            mDidRegister = false;
+        }
+
+        // remove message in message queue
+        mHandler.removeMessages(FIRST_TIME_INIT);
+        mHandler.removeMessages(RESTART_PREVIEW);
         super.onPause();
     }
 
+    /**
+     * 去掉保持屏幕的点亮并去掉可能没执行的动作
+     */
     private void resetScreenOn() {
         mHandler.removeMessages(CLEAR_SCREEN_DELAY);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -391,6 +625,21 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
         mHandler.sendEmptyMessageDelayed(CLEAR_SCREEN_DELAY, SCREEN_DELAY);
     }
 
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (action.equals(Intent.ACTION_MEDIA_MOUNTED)
+                    || action.equals(Intent.ACTION_MEDIA_UNMOUNTED)
+                    || action.equals(Intent.ACTION_MEDIA_CHECKING)) {
+                checkStorage();
+            } else if (action.equals(Intent.ACTION_MEDIA_SCANNER_FINISHED)) {
+                checkStorage();
+                updateThumbnailButton();
+            }
+        }
+    };
+
     private class MyHandler extends Handler {
         @Override
         public void handleMessage(Message msg) {
@@ -400,6 +649,9 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
                     break;
                 case CLEAR_SCREEN_DELAY:
                     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    break;
+                case FIRST_TIME_INIT:
+                    initializeFirstTime();
                     break;
                 default:
                     break;
