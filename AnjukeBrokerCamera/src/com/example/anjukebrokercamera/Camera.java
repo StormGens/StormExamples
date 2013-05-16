@@ -10,6 +10,7 @@ import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.content.res.Resources;
 import android.hardware.Camera.Parameters;
+import android.hardware.Camera.PictureCallback;
 import android.hardware.Camera.Size;
 import android.media.AudioManager;
 import android.media.ToneGenerator;
@@ -84,12 +85,29 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
     private int mLastOrientation = 0; // No rotation (landscape) by default.
 
     // 对焦状态
+    private final AutoFocusCallback mAutoFocusCallback = new AutoFocusCallback();
     private static final int FOCUS_NOT_STARTED = 0;
     private static final int FOCUSING = 1;
     private static final int FOCUSING_SNAP_ON_FINISH = 2;
     private static final int FOCUS_SUCCESS = 3;
     private static final int FOCUS_FAIL = 4;
     private int mFocusState = FOCUS_NOT_STARTED;
+    // 拍照过程
+    private ImageCapture mImageCapture = null;
+    // 拍照过程中时间的记录
+    private long mFocusStartTime;
+    private long mFocusCallbackTime;
+    private long mCaptureStartTime;
+    private long mShutterCallbackTime;
+    private long mPostViewPictureCallbackTime;
+    private long mRawPictureCallbackTime;
+    private long mJpegPictureCallbackTime;
+
+    public long mAutoFocusTime;
+    public long mShutterLag;
+    public long mShutterToPictureDisplayedTime;
+    public long mPictureDisplayedToJpegCallbackTime;
+    public long mJpegCallbackFinishTime;
 
     private int mStatus = IDLE;
     private static final int IDLE = 1;
@@ -104,7 +122,11 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
 
     // 拍照过程相关
     private int mPicturesRemaining;
-
+    private final ShutterCallback mShutterCallback = new ShutterCallback();
+    private final PostViewPictureCallback mPostViewPictureCallback = new PostViewPictureCallback();
+    private final RawPictureCallback mRawPictureCallback = new RawPictureCallback();
+    private final ErrorCallback mErrorCallback = new ErrorCallback();
+    private final JpegPictureCallback mJpegPictureCallback = new JpegPictureCallback();
     // 已抛弃列表：1、抛弃CameraSettings.upgradePreferences()方法的实现
     // 2、抛弃掉他自定义的用来设置相机配置的CameraHeadUpDisplay mHeadUpDisplay
     // 3、抛弃掉updateFocusIndicator对焦框的操作
@@ -112,6 +134,7 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
     // 5、ErrorCallback
     // 6、一些暂时用不上的相机的配置
     // 7、定位的功能
+    // 8、MediaServer相关
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -161,7 +184,7 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
     protected void onResume() {
         super.onResume();
         mPausing = false;
-
+        mImageCapture = new ImageCapture();
         // 如果还没有开启预览，那么就开启预览。
         if (!mPreviewing && !mStartPreviewFail) {
             resetExposureCompensation();
@@ -173,7 +196,7 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
             }
         }
         if (mSurfaceHolder != null) {
-            if (mFirstTimeInitialized) {
+            if (!mFirstTimeInitialized) {
                 mHandler.sendEmptyMessage(FIRST_TIME_INIT);
             } else {
                 initializeSecondTime();
@@ -399,6 +422,7 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
         installIntentFilter();
 
         mFirstTimeInitialized = true;
+        Log.v(TAG, "初始化第一梯队已经完成");
 
     }
 
@@ -409,7 +433,6 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
         mOrientationListener.enable();
         installIntentFilter();
         initializeFocusTone();
-        checkStorage();
         // 更新缩略图按钮
         updateThumbnailButton();
         // 检查sd卡
@@ -533,7 +556,7 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
         } else {
             restartPreview();
         }
-        if (mFirstTimeInitialized) {
+        if (!mFirstTimeInitialized) {
             mHandler.sendEmptyMessage(FIRST_TIME_INIT);
         } else {
             initializeSecondTime();
@@ -563,14 +586,77 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
 
     @Override
     public void onShutterButtonFocus(boolean pressed) {
-        // TODO Auto-generated method stub
+        if (mPausing) {
+            return;
+        }
+        doFocus(pressed);
 
     }
 
     @Override
     public void onShutterButtonClick() {
-        // TODO Auto-generated method stub
+        if (mPausing) {
+            return;
+        }
+        doSnap();
 
+    }
+
+
+    private boolean canTakePicture() {
+        return isCameraIdle() && mPreviewing && (mPicturesRemaining > 0);
+    }
+
+    private boolean isCameraIdle() {
+        return (mStatus == IDLE) && (mFocusState == FOCUS_NOT_STARTED);
+    }
+
+    private void cancelAutoFocus() {
+        // TODO Auto-generated method stub
+        if (mFocusState == FOCUSING || mFocusState == FOCUS_FAIL || mFocusState == FOCUS_SUCCESS) {
+            Log.v(TAG, "Cancel autofocus.");
+            mCameraDevice.cancelAutoFocus();
+        }
+        if (mFocusState != FOCUSING_SNAP_ON_FINISH) {
+            clearFocusState();
+        }
+
+    }
+
+    private void autoFocus() {
+        if (canTakePicture()) {// 仅仅当预览已经开启，并且没有在拍照，才进行自动对焦
+            Log.v(TAG, "开始对焦");
+            mFocusState = FOCUSING;
+            mFocusStartTime = System.currentTimeMillis();
+            updateFocusIndicator();
+            mCameraDevice.autoFocus(mAutoFocusCallback);
+        }
+
+    }
+
+    private void doFocus(boolean focused) {
+        if (!mFocusMode.equals(Parameters.FOCUS_MODE_INFINITY)) {
+            if (focused) {
+                autoFocus();// 对焦键按下
+            } else {
+                cancelAutoFocus();// 对焦键抬起
+            }
+        }
+
+    }
+    private void doSnap() {
+        Log.v(TAG, "doSnap: mFocusState=" + mFocusState);
+        // 如果用户has half-pressed着shutter并且对焦已经结束了。我们可以立即拍照，如果
+        // 对焦模式是无限远，我们也可以立即拍照
+        if (mFocusMode.equals(Parameters.FOCUS_MODE_INFINITY) || mFocusState == FOCUS_FAIL
+                || mFocusState == FOCUS_SUCCESS) {
+            mImageCapture.onSnap();
+        } else if (mFocusState == FOCUSING) {
+            // Half pressing shutter按钮已经为我们请求了自动对焦，所以在这里仅仅请求capture on focus 就行了
+            mFocusState = FOCUSING_SNAP_ON_FINISH;
+        } else if (mFocusState == FOCUS_NOT_STARTED) {
+            // 由于某种原因，用户松开了独角键，ignore
+        }
     }
 
     private void showCameraErrorAndFinish() {
@@ -591,7 +677,7 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
         stopPreview();
         closeCamera();
         resetScreenOn();
-
+        mImageCapture = null;
         if (mFirstTimeInitialized) {
             mOrientationListener.disable();
         }
@@ -600,6 +686,12 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
             mFocusToneGenerator.release();
             mFocusToneGenerator = null;
         }
+
+        if (mStorageHint != null) {
+            mStorageHint.cancel();
+            mStorageHint = null;
+        }
+
         if (mDidRegister) {
             unregisterReceiver(mReceiver);
             mDidRegister = false;
@@ -640,6 +732,192 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
         }
     };
 
+    private final class AutoFocusCallback
+            implements android.hardware.Camera.AutoFocusCallback {
+
+        @Override
+        public void onAutoFocus(boolean focused, android.hardware.Camera camera) {
+            mFocusCallbackTime = System.currentTimeMillis();
+            mAutoFocusTime = mFocusCallbackTime - mFocusStartTime;
+            Log.v(TAG, "mAutoFocusTime = " + mAutoFocusTime + "ms");
+            if (mFocusState == FOCUSING_SNAP_ON_FINISH) {
+                // 无论对焦是否成功，都拍照。如果已经将来会播放拍照声音，就不需要播放对焦声音了
+                if (focused) {
+                    mFocusState = FOCUS_SUCCESS;
+                } else {
+                    mFocusState = FOCUS_FAIL;
+                }
+                mImageCapture.onSnap();// 拍照
+            } else if (mFocusState == FOCUSING) {
+                // 用户在half-pressing拍照按钮，发出对焦声音，但是现在不要拍照
+                if (mFocusToneGenerator != null) {// 发出对焦成功声音
+                    mFocusToneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP2);
+                }
+                if (focused) {
+                    mFocusState = FOCUS_SUCCESS;
+                } else {
+                    mFocusState = FOCUS_FAIL;
+                }
+
+            } else if (mFocusState == FOCUS_NOT_STARTED) {
+                // 用户在对焦成功前已经释放了按键，这个时候啥也不做
+            }
+            updateFocusIndicator();
+        }
+
+    }
+
+    private class ImageCapture {
+        byte[] mCaptureOnlyData;
+
+        private void onSnap() {
+            // 如果相机已经在拍照的过程中了，那么就什么也不做了
+            if (mPausing || mStatus == SNAPSHOT_IN_PROGRESS) {
+                return;
+            }
+            mCaptureStartTime = System.currentTimeMillis();
+
+            mStatus = SNAPSHOT_IN_PROGRESS;
+            mPostViewPictureCallbackTime = 0;
+            capture();
+        }
+
+        private void capture() {
+            if (mCameraDevice == null) {
+                return;
+            }
+            // 进行真正的拍照
+            mCaptureOnlyData = null;
+            mParameters.setRotation(mLastOrientation);// 设置图片方向
+            mCameraDevice.setParameters(mParameters);
+            mCameraDevice.takePicture(mShutterCallback, mRawPictureCallback,
+                    mPostViewPictureCallback, mJpegPictureCallback);
+            mPreviewing = false;
+        }
+
+        public void storeImage(final byte[] data,
+                android.hardware.Camera camera) {
+            storeImage(data);
+
+        }
+
+        // Returns the rotation degree in the jpeg header.
+        private int storeImage(byte[] data) {
+            try {
+                long dateTaken = System.currentTimeMillis();
+                String title = StorageUtil.createName(dateTaken);
+                String fileName = title + ".jpg";
+                int degree[] = new int[1];
+                ImageManager.addImage(mContentResolver, title, dateTaken,
+                        ImageManager.CAMERA_IMAGE_BUCKET_NAME,
+                        fileName, null, data, degree);
+                return degree[0];
+            } catch (Exception ex) {
+                Log.e(TAG, "Exception while compressing image.", ex);
+                return 0;
+            }
+        }
+    }
+
+
+    private final class ShutterCallback
+            implements android.hardware.Camera.ShutterCallback {
+
+        @Override
+        public void onShutter() {
+            mShutterCallbackTime = System.currentTimeMillis();
+            mShutterLag = mShutterCallbackTime - mCaptureStartTime;
+            Log.v(TAG, "mShutterLag = " + mShutterLag + "ms");
+            clearFocusState();
+        }
+
+    }
+
+    private static final class ErrorCallback
+            implements android.hardware.Camera.ErrorCallback {
+
+        @Override
+        public void onError(int error, android.hardware.Camera camera) {
+            // TODO Auto-generated method stub
+
+        }
+
+    }
+
+    private final class JpegPictureCallback implements PictureCallback {
+
+        @Override
+        public void onPictureTaken(byte[] data, android.hardware.Camera camera) {
+            // TODO Auto-generated method stub
+            if (mPausing) {
+                return;
+            }
+            mJpegPictureCallbackTime = System.currentTimeMillis();
+            // If postview callback has arrived, the captured image is displayed
+            // in postview callback. If not, the captured image is displayed in
+            // raw picture callback.
+            if (mPostViewPictureCallbackTime != 0) {
+                mShutterToPictureDisplayedTime =
+                        mPostViewPictureCallbackTime - mShutterCallbackTime;
+                mPictureDisplayedToJpegCallbackTime =
+                        mJpegPictureCallbackTime - mPostViewPictureCallbackTime;
+            } else {
+                mShutterToPictureDisplayedTime =
+                        mRawPictureCallbackTime - mShutterCallbackTime;
+                mPictureDisplayedToJpegCallbackTime =
+                        mJpegPictureCallbackTime - mRawPictureCallbackTime;
+            }
+            Log.v(TAG, "mPictureDisplayedToJpegCallbackTime = "
+                    + mPictureDisplayedToJpegCallbackTime + "ms");
+            // 我们想要展示一会儿拍到的照片，所以在重启preview前至少有1.2秒
+            long delay = 1200 - mPictureDisplayedToJpegCallbackTime;
+            if (delay < 0) {
+                restartPreview();
+            } else {
+                mHandler.sendEmptyMessageDelayed(RESTART_PREVIEW, delay);
+            }
+            mImageCapture.storeImage(data, mCameraDevice);
+            mPicturesRemaining = StorageUtil.calculatePicturesRemaining();
+            if (mPicturesRemaining < 1) {
+                updateStorageHint();
+            }
+
+            if (!mHandler.hasMessages(RESTART_PREVIEW)) {
+                long now = System.currentTimeMillis();
+                mJpegCallbackFinishTime = now - mJpegPictureCallbackTime;
+                Log.v(TAG, "mJpegCallbackFinishTime = "
+                        + mJpegCallbackFinishTime + "ms");
+                mJpegPictureCallbackTime = 0;
+            }
+        }
+
+    }
+
+    private final class RawPictureCallback implements PictureCallback {
+
+        @Override
+        public void onPictureTaken(byte[] data, android.hardware.Camera camera) {
+            mRawPictureCallbackTime = System.currentTimeMillis();
+            Log.v(TAG, "mShutterToRawCallbackTime = "
+                    + (mRawPictureCallbackTime - mShutterCallbackTime) + "ms");
+
+        }
+
+    }
+
+    private final class PostViewPictureCallback implements PictureCallback {
+
+        @Override
+        public void onPictureTaken(byte[] data, android.hardware.Camera camera) {
+            mPostViewPictureCallbackTime = System.currentTimeMillis();
+            Log.v(TAG, "mShutterToPostViewCallbackTime = "
+                    + (mPostViewPictureCallbackTime - mShutterCallbackTime)
+                    + "ms");
+
+        }
+
+    }
+
     private class MyHandler extends Handler {
         @Override
         public void handleMessage(Message msg) {
@@ -652,6 +930,16 @@ public class Camera extends NoSearchActivity implements SurfaceHolder.Callback, 
                     break;
                 case FIRST_TIME_INIT:
                     initializeFirstTime();
+                    break;
+                case RESTART_PREVIEW:
+                    restartPreview();
+                    if (mJpegPictureCallbackTime != 0) {
+                        long now = System.currentTimeMillis();
+                        mJpegCallbackFinishTime = now - mJpegPictureCallbackTime;
+                        Log.v(TAG, "mJpegCallbackFinishTime = "
+                                + mJpegCallbackFinishTime + "ms");
+                        mJpegPictureCallbackTime = 0;
+                    }
                     break;
                 default:
                     break;

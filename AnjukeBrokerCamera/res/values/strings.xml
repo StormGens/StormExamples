@@ -17,6 +17,8 @@
     <string name="pref_camera_flashmode_no_flash" translatable="false">no_flash</string>
 
     
+        <!-- Camera format string for new image files. Passed to java.text.SimpleDateFormat. -->
+    <string name="image_file_name_format" translatable="false">"'IMG'_yyyyMMdd_HHmmss"</string>
     
         <string name="title_back">返回</string>
         <string name="title_ok">确定</string>

@@ -7,6 +7,13 @@
     <uses-sdk
         android:minSdkVersion="9"
         android:targetSdkVersion="10" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+    <uses-feature android:name="android.hardware.camera" />
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -15,10 +22,10 @@
         android:theme="@style/AppTheme" >
         <activity
             android:name="com.example.anjukebrokercamera.Camera"
-            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
             android:configChanges="orientation|keyboardHidden"
+            android:label="@string/app_name"
             android:screenOrientation="landscape"
-            android:label="@string/app_name" >
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -26,9 +33,6 @@
             </intent-filter>
         </activity>
     </application>
-    
-    <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-feature android:name="android.hardware.camera"/>
-    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
+
 
 </manifest>

@@ -13,6 +13,7 @@ import android.hardware.Camera.Size;
 import android.util.Log;
 import android.view.Display;
 
+import java.io.Closeable;
 import java.util.List;
 
 /**
@@ -97,5 +98,15 @@ public class Util {
             }
         }
         return optimalSize;
+    }
+
+    public static void closeSilently(Closeable c) {
+        if (c == null)
+            return;
+        try {
+            c.close();
+        } catch (Throwable t) {
+            // do nothing
+        }
     }
 }

@@ -10,6 +10,10 @@ import android.os.Environment;
 import android.os.StatFs;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 /**
  *@author liqiangzhang (liqiangzhang@anjuke.com)
@@ -21,7 +25,7 @@ public class StorageUtil {
 
     public static int calculatePicturesRemaining() {
         try {
-            if (hasStorage()) {
+            if (!hasStorage()) {
                 return NO_STORAGE_ERROR;
             } else {
                 String storageDirectory =
@@ -74,6 +78,24 @@ public class StorageUtil {
             }
         }
         return directory.canWrite();
+    }
+
+    @SuppressWarnings("resource")
+    public static boolean saveDataToFile(String filePath, byte[] data) {
+        FileOutputStream f = null;
+        try {
+            f = new FileOutputStream(filePath);
+            f.write(data);
+        } catch (IOException e) {
+            return false;
+        }
+        return true;
+    }
+
+    public static String createName(long dateTaken) {
+        Date date = new Date(dateTaken);
+        SimpleDateFormat dateFormat = new SimpleDateFormat("'IMG'_yyyyMMdd_HHmmss");
+        return dateFormat.format(date);
     }
 
 }
